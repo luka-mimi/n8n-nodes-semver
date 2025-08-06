@@ -104,14 +104,14 @@ jobs:
           ### 📝 本次更新
           EOL
               )
-              
+
               # 获取上一个标签
               LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-              
+
               if [ -n "$LAST_TAG" ]; then
                 echo "从标签 $LAST_TAG 到当前版本的变更:" >> temp_changelog.txt
                 echo "" >> temp_changelog.txt
-                
+
                 # 获取提交历史并分类
                 git log $LAST_TAG..HEAD --pretty=format:"%s" --no-merges | while read -r commit_msg; do
                   case "$commit_msg" in
@@ -125,7 +125,7 @@ jobs:
                     *) echo "- 📦 $commit_msg" >> temp_changelog.txt ;;
                   esac
                 done
-                
+
                 if [ -s temp_changelog.txt ]; then
                   CHANGELOG="$CHANGELOG
           $(cat temp_changelog.txt)"
@@ -138,7 +138,7 @@ jobs:
           - ✨ 完整支持Semantic Versioning操作
           - 📦 包含8个功能模块，覆盖99%的semver函数"
               fi
-              
+
               CHANGELOG="$CHANGELOG
 
           ### 📦 安装方式
@@ -156,13 +156,13 @@ jobs:
             CHANGELOG="🎉 版本 ${{ env.NEW_VERSION }} 发布
 
           ### 📝 本次更新"
-            
+
             # 获取上一个标签
             LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-            
+
             if [ -n "$LAST_TAG" ]; then
               echo "检测到上一个版本: $LAST_TAG"
-              
+
               # 获取提交历史并分类
               HAS_CHANGES=false
               while read -r commit_msg; do
@@ -190,7 +190,7 @@ jobs:
               done << EOF
           $(git log $LAST_TAG..HEAD --pretty=format:"%s" --no-merges)
           EOF
-              
+
               if [ "$HAS_CHANGES" = false ]; then
                 CHANGELOG="$CHANGELOG
           - 🔧 版本维护更新"
@@ -199,13 +199,13 @@ jobs:
               # 首次发布
               CHANGELOG="$CHANGELOG
           - 🎉 首次发布n8n-nodes-semver
-          - ✨ 完整支持Semantic Versioning操作  
+          - ✨ 完整支持Semantic Versioning操作
           - 📦 包含8个功能模块：验证、比较、范围、递增、解析、清理、强制转换、排序
           - ✅ 覆盖semver 99%的函数
           - 🔧 完善的TypeScript类型支持
           - 🌍 英文界面，符合国际化标准"
             fi
-            
+
             CHANGELOG="$CHANGELOG
 
           ### 📦 安装方式
@@ -218,7 +218,7 @@ jobs:
           - [📦 NPM包](https://www.npmjs.com/package/@luka-cat-mimi/n8n-nodes-semver)
           - [🐛 问题反馈](https://github.com/luka-mimi/n8n-nodes-semver/issues)"
           fi
-          
+
           echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -227,7 +227,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ env.NEW_VERSION }}
-          name: 版本 ${{ env.NEW_VERSION }}
+          name: ${{ env.NEW_VERSION }}
           body: ${{ steps.changelog.outputs.CHANGELOG }}
           draft: false
           prerelease: false
