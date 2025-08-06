@@ -1,0 +1,140 @@
+name: 自动发布到NPM和GitHub Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: '版本类型'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: 正式环境  # ⬅️ 加上这一行！
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 设置Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+          always-auth: true
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 运行代码检查
+        run: npm run lint
+
+      - name: 构建项目
+        run: npm run build
+
+      - name: 配置Git用户
+        run: |
+          git config --local user.email "luka.cat.mimi@gmail.com"
+          git config --local user.name "luka"
+
+      - name: 更新版本号（手动触发）
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          NEW_VERSION=$(npm version ${{ github.event.inputs.version_type }} --no-git-tag-version)
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+          git add package.json package-lock.json
+          git commit -m "chore: bump version to $NEW_VERSION"
+          git tag $NEW_VERSION
+          git push origin HEAD --follow-tags
+
+      - name: 获取版本号（标签触发）
+        if: github.event_name == 'push'
+        run: |
+          echo "NEW_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: 验证构建产物
+        run: |
+          echo "检查dist目录内容:"
+          ls -la dist/
+          echo "检查主要文件是否存在:"
+          test -f dist/nodes/Semver/Semver.node.js && echo "✅ Semver.node.js 存在"
+          test -f dist/nodes/Semver/semver.svg && echo "✅ semver.svg 存在"
+          test -f dist/package.json && echo "✅ dist/package.json 存在"
+
+      - name: 发布到NPM
+        run: |
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: 生成变更日志
+        id: changelog
+        run: |
+          if [ -f CHANGELOG.md ]; then
+            CHANGELOG=$(sed -n "/## \[${{ env.NEW_VERSION }}\]/,/## \[/p" CHANGELOG.md | head -n -1)
+          else
+            CHANGELOG="🎉 版本 ${{ env.NEW_VERSION }} 发布
+
+            ### 主要特性
+            - ✅ 支持Semantic Versioning完整功能
+            - ✅ 8个功能模块，覆盖semver 99%的函数
+            - ✅ 版本验证、比较、范围操作、递增等核心功能
+            - ✅ 完善的TypeScript类型支持
+            - ✅ 英文界面，符合国际化标准
+
+            ### 功能模块
+            - **验证 (Validation)**: 版本有效性检查和清理
+            - **比较 (Comparison)**: 版本比较操作
+            - **范围 (Range)**: 版本范围匹配和操作
+            - **递增 (Increment)**: 版本号递增
+            - **解析 (Parsing)**: 版本组件解析
+            - **清理 (Cleaning)**: 版本字符串规范化
+            - **强制转换 (Coercion)**: 字符串转semver格式
+            - **排序 (Sorting)**: 版本数组排序
+
+            ### 安装方式
+            \`\`\`bash
+            npm install @luka-cat-mimi/n8n-nodes-semver
+            \`\`\`
+
+            详细使用说明请参见 [README.md](https://github.com/luka-mimi/n8n-nodes-semver#readme)"
+          fi
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: 创建GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.NEW_VERSION }}
+          name: 版本 ${{ env.NEW_VERSION }}
+          body: ${{ steps.changelog.outputs.CHANGELOG }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 发布成功通知
+        run: |
+          echo "🎉 发布成功！"
+          echo "📦 NPM包: https://www.npmjs.com/package/@luka-cat-mimi/n8n-nodes-semver"
+          echo "🚀 GitHub Release: https://github.com/luka-mimi/n8n-nodes-semver/releases/tag/${{ env.NEW_VERSION }}"
+          echo "📋 安装命令: npm install @luka-cat-mimi/n8n-nodes-semver"
