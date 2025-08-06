@@ -5,7 +5,7 @@ import type {
 	INodeTypeDescription,
 	IDataObject,
 } from 'n8n-workflow';
-import { NodeConnectionType } from 'n8n-workflow';
+import { NodeConnectionType, ApplicationError } from 'n8n-workflow';
 
 import * as semver from 'semver';
 
@@ -38,19 +38,19 @@ export class Semver implements INodeType {
 				noDataExpression: true,
 				options: [
 					{
-						name: 'Validation',
-						value: 'validation',
-						description: 'Validate and parse versions',
+						name: 'Cleaning',
+						value: 'cleaning',
+						description: 'Clean and normalize versions',
+					},
+					{
+						name: 'Coercion',
+						value: 'coercion',
+						description: 'Coerce strings to semver format',
 					},
 					{
 						name: 'Comparison',
 						value: 'comparison',
 						description: 'Compare version numbers',
-					},
-					{
-						name: 'Range',
-						value: 'range',
-						description: 'Work with version ranges',
 					},
 					{
 						name: 'Increment',
@@ -63,19 +63,19 @@ export class Semver implements INodeType {
 						description: 'Parse version components',
 					},
 					{
-						name: 'Cleaning',
-						value: 'cleaning',
-						description: 'Clean and normalize versions',
-					},
-					{
-						name: 'Coercion',
-						value: 'coercion',
-						description: 'Coerce strings to semver format',
+						name: 'Range',
+						value: 'range',
+						description: 'Work with version ranges',
 					},
 					{
 						name: 'Sorting',
 						value: 'sorting',
 						description: 'Sort version arrays',
+					},
+					{
+						name: 'Validation',
+						value: 'validation',
+						description: 'Validate and parse versions',
 					},
 				],
 				default: 'validation',
@@ -122,6 +122,36 @@ export class Semver implements INodeType {
 				},
 				options: [
 					{
+						name: 'Compare',
+						value: 'compare',
+						description: 'Compare two versions (-1, 0, 1)',
+						action: 'Compare two versions',
+					},
+					{
+						name: 'Compare Build',
+						value: 'compareBuild',
+						description: 'Compare versions including build metadata',
+						action: 'Compare versions with build metadata',
+					},
+					{
+						name: 'Compare Loose',
+						value: 'compareLoose',
+						description: 'Compare versions with loose parsing',
+						action: 'Compare versions loosely',
+					},
+					{
+						name: 'Diff',
+						value: 'diff',
+						description: 'Get difference between versions',
+						action: 'Get version difference',
+					},
+					{
+						name: 'Equal',
+						value: 'eq',
+						description: 'Check if version1 == version2',
+						action: 'Check if versions are equal',
+					},
+					{
 						name: 'Greater Than',
 						value: 'gt',
 						description: 'Check if version1 > version2',
@@ -146,46 +176,16 @@ export class Semver implements INodeType {
 						action: 'Check if version is less than or equal',
 					},
 					{
-						name: 'Equal',
-						value: 'eq',
-						description: 'Check if version1 == version2',
-						action: 'Check if versions are equal',
-					},
-					{
 						name: 'Not Equal',
 						value: 'neq',
 						description: 'Check if version1 != version2',
 						action: 'Check if versions are not equal',
 					},
 					{
-						name: 'Compare',
-						value: 'compare',
-						description: 'Compare two versions (-1, 0, 1)',
-						action: 'Compare two versions',
-					},
-					{
 						name: 'Reverse Compare',
 						value: 'rcompare',
 						description: 'Reverse compare two versions',
 						action: 'Reverse compare two versions',
-					},
-					{
-						name: 'Compare Build',
-						value: 'compareBuild',
-						description: 'Compare versions including build metadata',
-						action: 'Compare versions with build metadata',
-					},
-					{
-						name: 'Compare Loose',
-						value: 'compareLoose',
-						description: 'Compare versions with loose parsing',
-						action: 'Compare versions loosely',
-					},
-					{
-						name: 'Diff',
-						value: 'diff',
-						description: 'Get difference between versions',
-						action: 'Get version difference',
 					},
 				],
 				default: 'gt',
@@ -204,16 +204,22 @@ export class Semver implements INodeType {
 				},
 				options: [
 					{
-						name: 'Satisfies',
-						value: 'satisfies',
-						description: 'Check if version satisfies range',
-						action: 'Check if version satisfies range',
+						name: 'Greater Than Range',
+						value: 'gtr',
+						description: 'Check if version is greater than range',
+						action: 'Check if version is greater than range',
 					},
 					{
-						name: 'Valid Range',
-						value: 'validRange',
-						description: 'Check if range is valid',
-						action: 'Check if range is valid',
+						name: 'Intersects',
+						value: 'intersects',
+						description: 'Check if ranges intersect',
+						action: 'Check if ranges intersect',
+					},
+					{
+						name: 'Less Than Range',
+						value: 'ltr',
+						description: 'Check if version is less than range',
+						action: 'Check if version is less than range',
 					},
 					{
 						name: 'Max Satisfying',
@@ -234,28 +240,16 @@ export class Semver implements INodeType {
 						action: 'Get minimum version from range',
 					},
 					{
-						name: 'Greater Than Range',
-						value: 'gtr',
-						description: 'Check if version is greater than range',
-						action: 'Check if version is greater than range',
-					},
-					{
-						name: 'Less Than Range',
-						value: 'ltr',
-						description: 'Check if version is less than range',
-						action: 'Check if version is less than range',
-					},
-					{
 						name: 'Outside Range',
 						value: 'outside',
 						description: 'Check if version is outside range',
 						action: 'Check if version is outside range',
 					},
 					{
-						name: 'Intersects',
-						value: 'intersects',
-						description: 'Check if ranges intersect',
-						action: 'Check if ranges intersect',
+						name: 'Satisfies',
+						value: 'satisfies',
+						description: 'Check if version satisfies range',
+						action: 'Check if version satisfies range',
 					},
 					{
 						name: 'Simplify Range',
@@ -274,6 +268,12 @@ export class Semver implements INodeType {
 						value: 'toComparators',
 						description: 'Convert range to comparators',
 						action: 'Convert range to comparators',
+					},
+					{
+						name: 'Valid Range',
+						value: 'validRange',
+						description: 'Check if range is valid',
+						action: 'Check if range is valid',
 					},
 				],
 				default: 'satisfies',
@@ -314,12 +314,6 @@ export class Semver implements INodeType {
 				},
 				options: [
 					{
-						name: 'Parse',
-						value: 'parse',
-						description: 'Parse version string to SemVer object',
-						action: 'Parse version string',
-					},
-					{
 						name: 'Major',
 						value: 'major',
 						description: 'Get major version number',
@@ -330,6 +324,12 @@ export class Semver implements INodeType {
 						value: 'minor',
 						description: 'Get minor version number',
 						action: 'Get minor version',
+					},
+					{
+						name: 'Parse',
+						value: 'parse',
+						description: 'Parse version string to SemVer object',
+						action: 'Parse version string',
 					},
 					{
 						name: 'Patch',
@@ -576,7 +576,7 @@ export class Semver implements INodeType {
 						value: 'preminor',
 					},
 					{
-						name: 'Pre-patch',
+						name: 'Pre-Patch',
 						value: 'prepatch',
 					},
 					{
@@ -621,15 +621,15 @@ export class Semver implements INodeType {
 				},
 				options: [
 					{
-						name: '0 (Zero-based)',
+						name: '0 (Zero-Based)',
 						value: '0',
 					},
 					{
-						name: '1 (One-based)',
+						name: '1 (One-Based)',
 						value: '1',
 					},
 					{
-						name: 'false (No number)',
+						name: 'False (No Number)',
 						value: 'false',
 					},
 				],
@@ -1087,7 +1087,7 @@ export class Semver implements INodeType {
 					}
 
 					default:
-						throw new Error(`Unknown resource: ${resource}`);
+						throw new ApplicationError(`Unknown resource: ${resource}`);
 				}
 
 				returnData.push({
