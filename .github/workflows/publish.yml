@@ -15,6 +15,9 @@ on:
           - patch
           - minor
           - major
+permissions:
+  id-token: write  # Required for OIDC
+  contents: read
 
 jobs:
   publish:
@@ -35,10 +38,13 @@ jobs:
       - name: 设置Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
           always-auth: true
+
+      - name: 更新npm版本
+        run: npm install -g npm@latest
 
       - name: 安装依赖
         run: npm ci
@@ -47,7 +53,7 @@ jobs:
         run: npm run lint
 
       - name: 构建项目
-        run: npm run build
+        run: npm run build --if-present
 
       - name: 配置Git用户
         run: |
@@ -80,7 +86,7 @@ jobs:
 
       - name: 发布到NPM
         run: |
-          npm publish --access public
+          npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -88,34 +94,131 @@ jobs:
         id: changelog
         run: |
           if [ -f CHANGELOG.md ]; then
+            # 如果存在CHANGELOG.md，尝试提取当前版本的变更内容
             CHANGELOG=$(sed -n "/## \[${{ env.NEW_VERSION }}\]/,/## \[/p" CHANGELOG.md | head -n -1)
+            if [ -z "$CHANGELOG" ]; then
+              # 如果没找到对应版本的变更日志，生成基于git提交的变更日志
+              CHANGELOG=$(cat << 'EOL'
+          🎉 版本 ${{ env.NEW_VERSION }} 发布
+
+          ### 📝 本次更新
+          EOL
+              )
+              
+              # 获取上一个标签
+              LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+              
+              if [ -n "$LAST_TAG" ]; then
+                echo "从标签 $LAST_TAG 到当前版本的变更:" >> temp_changelog.txt
+                echo "" >> temp_changelog.txt
+                
+                # 获取提交历史并分类
+                git log $LAST_TAG..HEAD --pretty=format:"%s" --no-merges | while read -r commit_msg; do
+                  case "$commit_msg" in
+                    feat*|feature*) echo "- ✨ $commit_msg" >> temp_changelog.txt ;;
+                    fix*|bugfix*) echo "- 🐛 $commit_msg" >> temp_changelog.txt ;;
+                    docs*) echo "- 📚 $commit_msg" >> temp_changelog.txt ;;
+                    style*) echo "- 💄 $commit_msg" >> temp_changelog.txt ;;
+                    refactor*) echo "- ♻️ $commit_msg" >> temp_changelog.txt ;;
+                    test*) echo "- ✅ $commit_msg" >> temp_changelog.txt ;;
+                    chore*) echo "- 🔧 $commit_msg" >> temp_changelog.txt ;;
+                    *) echo "- 📦 $commit_msg" >> temp_changelog.txt ;;
+                  esac
+                done
+                
+                if [ -s temp_changelog.txt ]; then
+                  CHANGELOG="$CHANGELOG
+          $(cat temp_changelog.txt)"
+                  rm -f temp_changelog.txt
+                fi
+              else
+                # 如果是首次发布，显示首次发布信息
+                CHANGELOG="$CHANGELOG
+          - 🎉 首次发布n8n-nodes-semver
+          - ✨ 完整支持Semantic Versioning操作
+          - 📦 包含8个功能模块，覆盖99%的semver函数"
+              fi
+              
+              CHANGELOG="$CHANGELOG
+
+          ### 📦 安装方式
+          \`\`\`bash
+          npm install @luka-cat-mimi/n8n-nodes-semver
+          \`\`\`
+
+          ### 🔗 相关链接
+          - [📖 使用文档](https://github.com/luka-mimi/n8n-nodes-semver#readme)
+          - [📦 NPM包](https://www.npmjs.com/package/@luka-cat-mimi/n8n-nodes-semver)
+          - [🐛 问题反馈](https://github.com/luka-mimi/n8n-nodes-semver/issues)"
+            fi
           else
+            # 如果不存在CHANGELOG.md，生成基于git提交的变更日志
             CHANGELOG="🎉 版本 ${{ env.NEW_VERSION }} 发布
 
-            ### 主要特性
-            - ✅ 支持Semantic Versioning完整功能
-            - ✅ 8个功能模块，覆盖semver 99%的函数
-            - ✅ 版本验证、比较、范围操作、递增等核心功能
-            - ✅ 完善的TypeScript类型支持
-            - ✅ 英文界面，符合国际化标准
+          ### 📝 本次更新"
+            
+            # 获取上一个标签
+            LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+            
+            if [ -n "$LAST_TAG" ]; then
+              echo "检测到上一个版本: $LAST_TAG"
+              
+              # 获取提交历史并分类
+              HAS_CHANGES=false
+              while read -r commit_msg; do
+                if [ -n "$commit_msg" ]; then
+                  HAS_CHANGES=true
+                  case "$commit_msg" in
+                    feat*|feature*) CHANGELOG="$CHANGELOG
+          - ✨ $commit_msg" ;;
+                    fix*|bugfix*) CHANGELOG="$CHANGELOG
+          - 🐛 $commit_msg" ;;
+                    docs*) CHANGELOG="$CHANGELOG
+          - 📚 $commit_msg" ;;
+                    style*) CHANGELOG="$CHANGELOG
+          - 💄 $commit_msg" ;;
+                    refactor*) CHANGELOG="$CHANGELOG
+          - ♻️ $commit_msg" ;;
+                    test*) CHANGELOG="$CHANGELOG
+          - ✅ $commit_msg" ;;
+                    chore*) CHANGELOG="$CHANGELOG
+          - 🔧 $commit_msg" ;;
+                    *) CHANGELOG="$CHANGELOG
+          - 📦 $commit_msg" ;;
+                  esac
+                fi
+              done << EOF
+          $(git log $LAST_TAG..HEAD --pretty=format:"%s" --no-merges)
+          EOF
+              
+              if [ "$HAS_CHANGES" = false ]; then
+                CHANGELOG="$CHANGELOG
+          - 🔧 版本维护更新"
+              fi
+            else
+              # 首次发布
+              CHANGELOG="$CHANGELOG
+          - 🎉 首次发布n8n-nodes-semver
+          - ✨ 完整支持Semantic Versioning操作  
+          - 📦 包含8个功能模块：验证、比较、范围、递增、解析、清理、强制转换、排序
+          - ✅ 覆盖semver 99%的函数
+          - 🔧 完善的TypeScript类型支持
+          - 🌍 英文界面，符合国际化标准"
+            fi
+            
+            CHANGELOG="$CHANGELOG
 
-            ### 功能模块
-            - **验证 (Validation)**: 版本有效性检查和清理
-            - **比较 (Comparison)**: 版本比较操作
-            - **范围 (Range)**: 版本范围匹配和操作
-            - **递增 (Increment)**: 版本号递增
-            - **解析 (Parsing)**: 版本组件解析
-            - **清理 (Cleaning)**: 版本字符串规范化
-            - **强制转换 (Coercion)**: 字符串转semver格式
-            - **排序 (Sorting)**: 版本数组排序
+          ### 📦 安装方式
+          \`\`\`bash
+          npm install @luka-cat-mimi/n8n-nodes-semver
+          \`\`\`
 
-            ### 安装方式
-            \`\`\`bash
-            npm install @luka-cat-mimi/n8n-nodes-semver
-            \`\`\`
-
-            详细使用说明请参见 [README.md](https://github.com/luka-mimi/n8n-nodes-semver#readme)"
+          ### 🔗 相关链接
+          - [📖 使用文档](https://github.com/luka-mimi/n8n-nodes-semver#readme)
+          - [📦 NPM包](https://www.npmjs.com/package/@luka-cat-mimi/n8n-nodes-semver)
+          - [🐛 问题反馈](https://github.com/luka-mimi/n8n-nodes-semver/issues)"
           fi
+          
           echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
